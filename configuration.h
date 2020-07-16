@@ -1,6 +1,6 @@
 #define Configuration_h
 
-#define TEMPDIF 5
+#define TEMPDIF 3
 #define FANMIN 6
 
 #define EMAILUSERNAME "";

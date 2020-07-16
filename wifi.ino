@@ -27,8 +27,6 @@ void wifiSetup() {
 
 //call by WifiManager when entering AP mode
 void wifiConfigModeCallback (WiFiManager *myWiFiManager) {
-  //fast ticker while waiting to config
-  ticker.attach(0.2, tick);
   Serial.println("In AP Mode");
   Serial.println(myWiFiManager->getConfigPortalSSID());
   lcdWifiBroadcast(myWiFiManager->getConfigPortalSSID());

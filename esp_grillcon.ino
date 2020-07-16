@@ -1,9 +1,15 @@
 
+
+extern "C" 
+{
+#include "user_interface.h"
+} 
+
 #include <FS.h>
 #include "max6675.h"
 #include <SPI.h>
 #include <Wire.h>
-#include <Adafruit_GFX.h>
+//#include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
 #include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
@@ -12,44 +18,43 @@
 //#include <ArduinoOTA.h>
 #include <DNSServer.h>
 #include <WiFiManager.h>         //https://github.com/tzapu/WiFiManager
-#include <Ticker.h>
 #include <ArduinoJson.h>
 #include <ESP8266mDNS.h>
-//#include <PubSubClient.h>
-
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <TimeLib.h> 
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 
 #include "configuration.h"
 
 //todo
-//////screen functions
-////cook variables to the file system cookLoad and cookSave
-//config html page submission
-////autorefresh html page
-//graph
-//chart
-////limit temp output size to 3 chars
+//email/text alerts?
+//break up html file size
 
 
+#define ALLOCATED_RAM 33520
 
+unsigned long timer = 0;
+unsigned long writeTimer = 0;
 
+WiFiUDP ntpUDP;
 
-Ticker ticker;
+// You can specify the time server pool and the offset, (in seconds)
+// additionaly you can specify the update interval (in milliseconds).
+// NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600, 60000);
+NTPClient timeClient(ntpUDP, "north-america.pool.ntp.org", -18000, 3600);
 
-// Bounce doorSwitch = Bounce();
-
-char jsonStatusMsg[140];
+//char jsonStatusMsg[140];
 
 //configuration properties
 int tempDif = TEMPDIF;
 int fanMin = FANMIN;
-//boolean mqttSsl = false;
-char emailUsername[150];
-char emailPassword[150];
-char emailSendTo[150];
-int alertOn = ALERTON;
-int emailAfter = EMAILAFTER;
+//char emailUsername[150];
+//char emailPassword[150];
+//char emailSendTo[150];
+//int alertOn = ALERTON;
+//int emailAfter = EMAILAFTER;
 
 char hostname[20];
 
@@ -75,8 +80,11 @@ int my_current_meat_temp = 0;
 int my_state = 0;
 int my_fan_speed = 0;
 
-
-
+//graph data
+int count = 0;
+String *timeStamp;
+int *grillTemp;
+int *meatTemp;
 
 ///lcd
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
@@ -90,65 +98,49 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 void setup() {
   Serial.begin(115200);
 
-  //pinMode(16, OUTPUT);
-  //pinMode(fanPin, OUTPUT);  // sets the pin as output
-  //digitalWrite(LED_BUILTIN,HIGH)
-
-
-
   sprintf (hostname, "smoker");
-  
-  //slow ticker when starting up
-  //switch to fast tick when in AP mode
-  ticker.attach(0.6, tick);
-
+  //load config file
   configLoad();
-
+  //start lcd screen
   lcdSetup();
-
+  //start wifi
   wifiSetup();
-
   mdnsSetup();
-
   webServerSetup();
-
-  ticker.detach();
-
-
-
+  //get ntp time
+  timeClient.begin();
+  //timers for the loop
+  timer = millis();
+  writeTimer = millis();
+  //determine free space and initialize arrays
+  allocateRam();
+  //load previous cook data if possible
   cookLoad();
   
   Serial.println("finished setup");
-}
+}//finish setup
 
 void loop() {
 
-
+   
    webServerLoop();
-   getTempF();
-   if (my_state == 1){
-    ticker.attach(0.2, tick);
-    controlFan();
-   }
-   else {
-    ticker.detach();
-    my_fan_speed = 0;
-    //fanspeedhere
-    analogWrite(fanPin, 0);
-   }
 
-   lcdWrite();
+   //get temps and update variables for LCD and website based on timer value
+   if (millis()>=timer){
+    timer = millis() + 3000;
 
+    getTempF();
+     if (my_state == 1){
+      controlFan();
+     }
+     else {
+      my_fan_speed = 0;
+      analogWrite(fanPin, 0);
+     }
 
-   
-   delay(1000);
-//   digitalWrite(2, HIGH);  // Turn the LED off by making the voltage HIGH
-//   delay(1000);
-   
-}
-
-//#define tempDif 5
-//#define fanMin 6
+     lcdWrite();
+   } 
+}//finish loop
 
 void controlFan(){
 
@@ -165,59 +157,82 @@ void controlFan(){
   else {
     my_fan_speed = 0;
   }
-  Serial.println("Temp Difference is ");
+
+  Serial.print("Max Temp Difference is ");  
+  Serial.println(tempDif);
+  Serial.print("Temp Difference is ");
   Serial.println(my_tempDif);
-  Serial.println("Fan Speed Is ");
+  Serial.print("Fan Speed Is ");
   Serial.println(my_fan_speed);
   //fanspeed here
   analogWrite(fanPin, my_fan_speed);
 }
 
 
-
-void tick() {
-  //int state = digitalRead(16);
-  //digitalWrite(16, !state);
-}
-
 void getTempF(){
+
   my_current_grill_temp = thermocouple0.readFahrenheit();
   my_current_meat_temp = thermocouple1.readFahrenheit();
-  //my_current_meat_temp = thermocouple0.readFahrenheit();
+  
 
   if (my_current_grill_temp > 999) {
     my_current_grill_temp = 999;
   }
-  
   if (my_current_meat_temp > 999) {
     my_current_meat_temp = 999;
   }
+
+  if (millis() >= writeTimer) {
+    
+    //ntp time
+    timeClient.update();
+    
+    Serial.println(timeClient.getFormattedTime());
+  
+    writeTimer = millis() + 600000; // 5 mins = 300000 millis
+    timeStamp[count] = timeClient.getFormattedTime();  //Current time
+    if (my_current_grill_temp < 999) {
+      grillTemp[count] = my_current_grill_temp;
+    }
+    if (my_current_meat_temp < 999) {
+      meatTemp[count] = my_current_meat_temp;
+    }
+
+    Serial.print(" writing to memory - current time ");
+    Serial.println(timeStamp[count]);
+    Serial.print("grill temp ");
+    Serial.println(grillTemp[count]);
+    Serial.print("meat temp ");
+    Serial.println(meatTemp[count]);
+    Serial.print("counter is ");
+    Serial.println(count);
+
+    count++;
+  }
 }
-//
-//void toggleFan() {
-//  ticker.attach(0.2, tick);
-//  Serial.println("toggling fan");
-//}
 
-// void sendCurrentDoorStatus(boolean changed) {
-//   int doorState = !doorSwitch.read();
-//   sprintf (jsonStatusMsg, "{\"status\":%s, \"changed\":%s}", doorState ? "\"CLOSED\"" : "\"OPEN\"", changed ? "true" : "false");
 
-//   mqttSendMsg(jsonStatusMsg);
-// }
+void allocateRam(){
+  //Get free RAM in bytes
+  uint32_t free=system_get_free_heap_size() - ALLOCATED_RAM;
+  unsigned long numberOfRows=0;
 
-// void sendDoorStatusOnChange() {
-//   boolean changed = doorSwitch.update();
+  
+  //Divide the free RAM by the size of the variables used to store the data. 
+  //This will allow us to work out the maximum number of records we can store. 
+  //All while keeping some RAM free which is specified in ALLOCATED_RAM
+  numberOfRows = free / (sizeof(int)*2+ sizeof(unsigned long)); // 2 x int for temp and pressure.  Long for time. 
 
-//   //if the button state has changed, current state is recorded
-//   if (changed) {
-//     ticker.detach();
-//     sendCurrentDoorStatus(changed);
-//     int doorState = !doorSwitch.read();
-//     digitalWrite(ONBOARD_LED, doorState);
-//   }
+  Serial.print("Space for ");
+  Serial.print(numberOfRows);
+  Serial.println(" rows");
 
-// }
+  //re-declare the arrays with the number of elements
+  grillTemp = new int [numberOfRows];
+  meatTemp = new int [numberOfRows];
+  timeStamp = new String [numberOfRows];
+
+}
 
 void factoryReset() {
   Serial.println("Restoring Factory Setting....");
@@ -239,11 +254,11 @@ void configSave() {
   //standard properties, always shown when view config
   json["tempDif"] = tempDif;
   json["fanMin"] = fanMin;
-  json["emailUsername"] = emailUsername;
-  // json["mqttSsl"] = mqttSsl;
-  json["emailPassword"] = emailPassword;
-  json["emailSendTo"] = emailSendTo;
-  json["emailAfter"] = emailAfter;
+//  json["emailUsername"] = emailUsername;
+//  json["mqttSsl"] = mqttSsl;
+//  json["emailPassword"] = emailPassword;
+//  json["emailSendTo"] = emailSendTo;
+//  json["emailAfter"] = emailAfter;
 
   //advanced properties, only show in config if set
   // if (strlen(commandTopic))
@@ -336,28 +351,28 @@ void configLoad() {
         if (json.containsKey("fanMin")) {
           fanMin = json["fanMin"];
         }
-
-        if (json.containsKey("emailUsername")) {
-          strncpy(emailUsername, json["emailUsername"], 150);
-        }
-
-        if (json.containsKey("emailPassword")) {
-          strncpy(emailPassword, json["emailPassword"], 150);
-        }
-
-
-        if (json.containsKey("emailsendTo")) {
-          strncpy(emailSendTo, json["emailSendTo"], 150);
-        }
-
-
-        if (json.containsKey("emailAfter")) {
-          fanMin = json["emailAfter"];
-        }
-
-        if (json.containsKey("alertOn")) {
-          alertOn = json["alertOn"];
-        }
+//
+//        if (json.containsKey("emailUsername")) {
+//          strncpy(emailUsername, json["emailUsername"], 150);
+//        }
+//
+//        if (json.containsKey("emailPassword")) {
+//          strncpy(emailPassword, json["emailPassword"], 150);
+//        }
+//
+//
+//        if (json.containsKey("emailsendTo")) {
+//          strncpy(emailSendTo, json["emailSendTo"], 150);
+//        }
+//
+//
+//        if (json.containsKey("emailAfter")) {
+//          fanMin = json["emailAfter"];
+//        }
+//
+//        if (json.containsKey("alertOn")) {
+//          alertOn = json["alertOn"];
+//        }
 
 
       }
