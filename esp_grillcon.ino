@@ -129,9 +129,11 @@ void loop() {
    if (millis()>=timer){
     timer = millis() + 3000;
 
-    getTempF();
+    getTempF(); 
+    
      if (my_state == 1){
       controlFan();
+      logCook();
      }
      else {
       my_fan_speed = 0;
@@ -172,17 +174,22 @@ void controlFan(){
 void getTempF(){
 
   my_current_grill_temp = thermocouple0.readFahrenheit();
+  Serial.print("current grill temp is ");
+  Serial.println(my_current_grill_temp);
   my_current_meat_temp = thermocouple1.readFahrenheit();
-  
+  Serial.print("current meat temp is ");
+  Serial.println(my_current_meat_temp);
 
-  if (my_current_grill_temp > 999) {
-    my_current_grill_temp = 999;
+  if (isnan(my_current_grill_temp) or my_current_grill_temp == 2147483647) {
+    my_current_grill_temp = 0;
   }
-  if (my_current_meat_temp > 999) {
-    my_current_meat_temp = 999;
+  if (isnan(my_current_meat_temp) or my_current_meat_temp == 2147483647) {
+    my_current_meat_temp = 0;
   }
+}
 
-  if (millis() >= writeTimer) {
+void logCook(){
+    if (millis() >= writeTimer) {
     
     //ntp time
     timeClient.update();
@@ -191,12 +198,8 @@ void getTempF(){
   
     writeTimer = millis() + 600000; // 5 mins = 300000 millis
     timeStamp[count] = timeClient.getFormattedTime();  //Current time
-    if (my_current_grill_temp < 999) {
-      grillTemp[count] = my_current_grill_temp;
-    }
-    if (my_current_meat_temp < 999) {
-      meatTemp[count] = my_current_meat_temp;
-    }
+    grillTemp[count] = my_current_grill_temp;
+    meatTemp[count] = my_current_meat_temp;
 
     Serial.print(" writing to memory - current time ");
     Serial.println(timeStamp[count]);
