@@ -1,12 +1,5 @@
 ESP8266WebServer server(80);
 
-
-
-
-
-
-
-
 void webServerSetup() {
   Serial.println("Starting web server on port 80");
   server.on("/", handleStatus);
@@ -15,7 +8,6 @@ void webServerSetup() {
   //  server.on("/version", HTTP_GET, handleVersion);
   server.on("/config", handleConfig);
   server.on("/configSubmit", handleConfigSubmit);
-  
 
   server.begin();
 }
@@ -36,13 +28,11 @@ void drawGraph() {
             message += ("data.addColumn('string', 'Date');\n");
             message += ("data.addColumn('number', 'GrillTemp');\n");
             message += ("data.addColumn('number', 'MeatTemp');\n");
-            //message += ("data.addColumn('number', 'Berlin');\n");
-            //message += ("data.addColumn('number', 'London');\n");
             message += ("data.addRows([\n");
 
-              for (int i = 0; i< count ; i++){
+              for (int i = 0; i< rowCount ; i++){
                 message += ("['" + String(timeStamp[i]) +  "'," + String(grillTemp[i]) +  "," + String(meatTemp[i]) + "],\n");
-                Serial.println("['" + String(timeStamp[i]) +  "'," + String(grillTemp[i]) +  "," + String(meatTemp[i]) + "],\n");
+                //Serial.println("['" + String(timeStamp[i]) +  "'," + String(grillTemp[i]) +  "," + String(meatTemp[i]) + "],\n");
                 
               }
               message += ("]);\n");
@@ -88,7 +78,7 @@ void handleStatus() {
             message += ("['Label', 'Value'],\n");
             message += ("['Grill', " + String(my_current_grill_temp) + "],\n");
             message += ("['Meat', " + String(my_current_meat_temp) + "],\n");
-            message += ("['Fan', " + String(my_fan_speed) + "]\n");
+            message += ("['Fan', " + String((my_fan_speed / 10.24)) + "]\n");
           message += ("]);\n");
 
           message += ("var options = {\n");
@@ -157,6 +147,8 @@ void handleConfig() {
   message += String(tempDif);
   message += "<p> Current Fan Min: ";
   message += String(fanMin);
+  message += "<p> Time Zone Offset: ";
+  message += String(timeZoneOffset / 3600);
   //message += "<p> Email Username: ";
   //message += String(emailUsername);
   //message += "<p> Email Password: ";
@@ -174,9 +166,12 @@ void handleConfig() {
   message += "<form action='configSubmit'>";
   message += "Temp Dif <input type='text' name='tempdif' ​maxlength='3' size='3' value='";
   message += String(tempDif);
-  message += "'><p>Fan Min";
-  message += "<input type='text' name='fanmin' ​maxlength='3' size='3' value='";
+  message += "'><p>";
+  message += "Fan Min<input type='text' name='fanmin' ​maxlength='3' size='3' value='";
   message += String(fanMin);
+  message += "'><p>";
+  message += "Time Zone Offset<input type='text' name='tz' ​maxlength='3' size='3' value='";
+  message += String(timeZoneOffset / 3600);
   message += "'><p>";
 
 
@@ -194,6 +189,9 @@ Serial.print("Received config submit fanmin is now: ");
 Serial.println(server.arg("fanmin"));
 tempDif = server.arg("tempdif").toInt();
 fanMin = server.arg("fanmin").toInt();
+timeZoneOffset = server.arg("tz").toInt() * 3600;
+Serial.print("saving timezone offset ");
+Serial.println(timeZoneOffset);
 
 
   configSave();

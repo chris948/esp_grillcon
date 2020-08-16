@@ -26,7 +26,6 @@ extern "C"
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
 
-#include "configuration.h"
 
 //todo
 //email/text alerts?
@@ -34,6 +33,7 @@ extern "C"
 
 
 #define ALLOCATED_RAM 33520
+unsigned long numberOfRows=0;
 
 unsigned long timer = 0;
 unsigned long writeTimer = 0;
@@ -43,18 +43,22 @@ WiFiUDP ntpUDP;
 // You can specify the time server pool and the offset, (in seconds)
 // additionaly you can specify the update interval (in milliseconds).
 // NTPClient timeClient(ntpUDP, "europe.pool.ntp.org", 3600, 60000);
-NTPClient timeClient(ntpUDP, "north-america.pool.ntp.org", -18000, 3600);
+//-18000 = 5 hours,
+//-21600 = 6 hours
+int timeZoneOffset = -18000;
+NTPClient timeClient(ntpUDP, "0.north-america.pool.ntp.org", timeZoneOffset, 60000);
 
 //char jsonStatusMsg[140];
 
 //configuration properties
-int tempDif = TEMPDIF;
-int fanMin = FANMIN;
+int tempDif = 3;
+int fanMin = 6;
 //char emailUsername[150];
 //char emailPassword[150];
 //char emailSendTo[150];
 //int alertOn = ALERTON;
 //int emailAfter = EMAILAFTER;
+int writeDuration = 120000; // 5 mins = 300000 millis, 3 mins = 180000, 2 mins = 120000
 
 char hostname[20];
 
@@ -81,7 +85,7 @@ int my_state = 0;
 int my_fan_speed = 0;
 
 //graph data
-int count = 0;
+int rowCount = 0;
 String *timeStamp;
 int *grillTemp;
 int *meatTemp;
@@ -99,37 +103,47 @@ void setup() {
   Serial.begin(115200);
 
   sprintf (hostname, "smoker");
-  //load config file
-  configLoad();
   //start lcd screen
   lcdSetup();
+  
   //start wifi
   wifiSetup();
   mdnsSetup();
   webServerSetup();
+  
+  //load config file
+  configLoad();
+  
   //get ntp time
   timeClient.begin();
+  
   //timers for the loop
   timer = millis();
   writeTimer = millis();
+  
   //determine free space and initialize arrays
   allocateRam();
+  
   //load previous cook data if possible
   cookLoad();
   
   Serial.println("finished setup");
-}//finish setup
+}//end setup
 
 void loop() {
 
    
    webServerLoop();
 
+   if (rowCount % 2 == 0){
+    checkMem();
+   }
+
    //get temps and update variables for LCD and website based on timer value
    if (millis()>=timer){
     timer = millis() + 3000;
 
-    getTempF(); 
+    getTempF();
     
      if (my_state == 1){
       controlFan();
@@ -143,6 +157,39 @@ void loop() {
      lcdWrite();
    } 
 }//finish loop
+
+
+//checks to see if the array is getting full. If so, overwrites rows, deleting every other entry
+void checkMem(){
+  if ((rowCount + 16) > numberOfRows){
+    Serial.println("entering checkmem loop");
+    Serial.println(rowCount);
+
+//i=2 leaves the first entry, preserving cook start time
+    for (int i = 2; i< (rowCount / 2) ; i++){
+
+      int newRow = (i * 2) - 1;
+      Serial.print("new row is ");
+      Serial.println(newRow);
+      timeStamp[i] = timeStamp[newRow];
+      Serial.print("timestamp is ");
+      Serial.println(timeStamp[newRow]);
+      grillTemp[i] = grillTemp[newRow];
+      Serial.print("grilltemp is ");
+      Serial.println(grillTemp[newRow]);
+      meatTemp[i] = meatTemp[newRow];
+      Serial.print("meat temp is ");
+      Serial.println(meatTemp[newRow]);
+    }
+    //reset rowCount to the new, smaller number so any new writes will start after this culling
+    rowCount = (rowCount / 2);
+    //double writeDuration to match the half of values left in our history
+    writeDuration += writeDuration;
+
+    Serial.println("leaving checkmem loop");
+    Serial.println(rowCount);
+  }
+}
 
 void controlFan(){
 
@@ -164,8 +211,8 @@ void controlFan(){
   Serial.println(tempDif);
   Serial.print("Temp Difference is ");
   Serial.println(my_tempDif);
-  Serial.print("Fan Speed Is ");
-  Serial.println(my_fan_speed);
+  //Serial.print("Fan Speed Is ");
+  //Serial.println(my_fan_speed);
   //fanspeed here
   analogWrite(fanPin, my_fan_speed);
 }
@@ -174,11 +221,8 @@ void controlFan(){
 void getTempF(){
 
   my_current_grill_temp = thermocouple0.readFahrenheit();
-  Serial.print("current grill temp is ");
-  Serial.println(my_current_grill_temp);
   my_current_meat_temp = thermocouple1.readFahrenheit();
-  Serial.print("current meat temp is ");
-  Serial.println(my_current_meat_temp);
+  
 
   if (isnan(my_current_grill_temp) or my_current_grill_temp == 2147483647) {
     my_current_grill_temp = 0;
@@ -189,28 +233,29 @@ void getTempF(){
 }
 
 void logCook(){
-    if (millis() >= writeTimer) {
+  
+  if (millis() >= writeTimer) {
     
     //ntp time
     timeClient.update();
     
     Serial.println(timeClient.getFormattedTime());
   
-    writeTimer = millis() + 600000; // 5 mins = 300000 millis
-    timeStamp[count] = timeClient.getFormattedTime();  //Current time
-    grillTemp[count] = my_current_grill_temp;
-    meatTemp[count] = my_current_meat_temp;
+    writeTimer = millis() + writeDuration;
+    timeStamp[rowCount] = timeClient.getFormattedTime();  //Current time
+    grillTemp[rowCount] = my_current_grill_temp;
+    meatTemp[rowCount] = my_current_meat_temp;
 
     Serial.print(" writing to memory - current time ");
-    Serial.println(timeStamp[count]);
+    Serial.println(timeStamp[rowCount]);
     Serial.print("grill temp ");
-    Serial.println(grillTemp[count]);
+    Serial.println(grillTemp[rowCount]);
     Serial.print("meat temp ");
-    Serial.println(meatTemp[count]);
+    Serial.println(meatTemp[rowCount]);
     Serial.print("counter is ");
-    Serial.println(count);
+    Serial.println(rowCount);
 
-    count++;
+    rowCount++;
   }
 }
 
@@ -218,13 +263,12 @@ void logCook(){
 void allocateRam(){
   //Get free RAM in bytes
   uint32_t free=system_get_free_heap_size() - ALLOCATED_RAM;
-  unsigned long numberOfRows=0;
 
   
   //Divide the free RAM by the size of the variables used to store the data. 
   //This will allow us to work out the maximum number of records we can store. 
   //All while keeping some RAM free which is specified in ALLOCATED_RAM
-  numberOfRows = free / (sizeof(int)*2+ sizeof(unsigned long)); // 2 x int for temp and pressure.  Long for time. 
+  numberOfRows = free / (sizeof(int)*2+ sizeof(unsigned long)); // 2 x int for temps.  Long for time. 
 
   Serial.print("Space for ");
   Serial.print(numberOfRows);
@@ -247,16 +291,13 @@ void factoryReset() {
   ESP.restart();
 }
 
-
-//Called to save the configuration data after
-//the device goes into AP mode for configuration
 void configSave() {
-  DynamicJsonDocument jsonDoc(1024);
+  DynamicJsonDocument jsonDoc(128);
   JsonObject json = jsonDoc.to<JsonObject>();
 
-  //standard properties, always shown when view config
   json["tempDif"] = tempDif;
   json["fanMin"] = fanMin;
+  json["timeZoneOffset"] = timeZoneOffset;
 //  json["emailUsername"] = emailUsername;
 //  json["mqttSsl"] = mqttSsl;
 //  json["emailPassword"] = emailPassword;
@@ -287,13 +328,13 @@ void cookSave() {
   json["my_target_grill_temp"] = my_target_grill_temp;
   json["my_state"] = my_state;
 
-  File configFile = SPIFFS.open("/cook.json", "w");
-  if (configFile) {
+  File cookFile = SPIFFS.open("/cook.json", "w");
+  if (cookFile) {
     Serial.println("Saving cook data....");
     serializeJson(json, Serial);
     Serial.println();
-    serializeJson(json, configFile);
-    configFile.close();
+    serializeJson(json, cookFile);
+    cookFile.close();
   }
 }
 
@@ -354,6 +395,13 @@ void configLoad() {
         if (json.containsKey("fanMin")) {
           fanMin = json["fanMin"];
         }
+        
+         if (json.containsKey("timeZoneOffset")) {
+          Serial.print("time zone offset received ");
+          timeZoneOffset = json["timeZoneOffset"];
+          Serial.println(timeZoneOffset);
+          timeClient.setTimeOffset(timeZoneOffset);
+        }       
 //
 //        if (json.containsKey("emailUsername")) {
 //          strncpy(emailUsername, json["emailUsername"], 150);
