@@ -25,6 +25,7 @@ extern "C"
 #include <TimeLib.h> 
 #include <WiFiClient.h>
 #include <ESP8266WebServer.h>
+#include <WebOTA.h>
 
 
 //todo
@@ -110,6 +111,11 @@ void setup() {
   wifiSetup();
   mdnsSetup();
   webServerSetup();
+
+  //webota
+  // To use a specific port and path uncomment this line
+  // Defaults are 8080 and "/webota"
+  //webota.init(8888, "/update");
   
   //load config file
   configLoad();
@@ -134,6 +140,8 @@ void loop() {
 
    
    webServerLoop();
+   //webota
+   webota.handle();
 
    if (rowCount % 2 == 0){
     checkMem();
