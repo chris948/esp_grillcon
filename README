@@ -1,1 +1,37 @@
-grill controller for esp8266
+grill controller for esp8266.
+
+The diode label on the pcb is reversed. Install it backwards from the pcb print.
+
+
+BOM
+·         2x Type k thermocouples
+
+·         2x max6675 https://www.aliexpress.com/item/32853251306.html?spm=a2g0o.productlist.0.0.1ea17c00qSRZpm&algo_pvid=b7ef8fae-1d63-4836-b8e4-a21e3b5074c7&algo_expid=b7ef8fae-1d63-4836-b8e4-a21e3b5074c7-3&btsid=0ab6d69515930518538032351e29db&ws_ab_test=searchweb0_0,searchweb201602_,searchweb201603_
+
+ 
+
+·         .96 inch lcd screen
+
+https://www.aliexpress.com/item/32638662748.html?spm=a2g0o.productlist.0.0.1cbc6f54IB8xbw&algo_pvid=8f76e016-4128-4726-9b67-23df25470cae&algo_expid=8f76e016-4128-4726-9b67-23df25470cae-14&btsid=0ab6f82415930521523201771e372c&ws_ab_test=searchweb0_0,searchweb201602_,searchweb201603_
+
+ 
+
+·         D1 Mini
+
+https://www.aliexpress.com/item/32643142716.html?spm=a2g0o.productlist.0.0.1425402dvAnxSC&algo_pvid=b3131009-ec47-4e11-a8e9-c7cb25bda480&algo_expid=b3131009-ec47-4e11-a8e9-c7cb25bda480-6&btsid=0ab6d59515930522051631708ee757&ws_ab_test=searchweb0_0,searchweb201602_,searchweb201603_
+
+ 
+
+·         1k ohm resistor
+
+·         1N4007 diode
+
+·         2N2222A transistor
+
+Optional
+
+·         Thermocouple Connector, Panel Jack, MPJ Series, Type K, Socket
+
+https://www.newark.com/newport-electronics/mpj-k-f-rohs/miniature-panel-socket-k-type/dp/64X9318
+
+https://www.auberins.com/index.php?main_page=product_info&products_id=247
