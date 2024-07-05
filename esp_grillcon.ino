@@ -54,6 +54,7 @@ NTPClient timeClient(ntpUDP, "0.north-america.pool.ntp.org", timeZoneOffset, 600
 //configuration properties
 int tempDif = 3;
 int fanMin = 6;
+int dispC =0;
 //char emailUsername[150];
 //char emailPassword[150];
 //char emailSendTo[150];
@@ -228,8 +229,15 @@ void controlFan(){
 
 void getTempF(){
 
-  my_current_grill_temp = thermocouple0.readFahrenheit();
-  my_current_meat_temp = thermocouple1.readFahrenheit();
+  if (dispC == 0){
+      my_current_grill_temp = thermocouple0.readFahrenheit();
+      my_current_meat_temp = thermocouple1.readFahrenheit();
+  }
+  else {
+      my_current_grill_temp = thermocouple0.readCelsius();
+      my_current_meat_temp = thermocouple1.readCelsius();   
+  }
+
   
 
   if (isnan(my_current_grill_temp) or my_current_grill_temp == 2147483647) {
@@ -299,35 +307,6 @@ void factoryReset() {
   ESP.restart();
 }
 
-void configSave() {
-  DynamicJsonDocument jsonDoc(128);
-  JsonObject json = jsonDoc.to<JsonObject>();
-
-  json["tempDif"] = tempDif;
-  json["fanMin"] = fanMin;
-  json["timeZoneOffset"] = timeZoneOffset;
-//  json["emailUsername"] = emailUsername;
-//  json["mqttSsl"] = mqttSsl;
-//  json["emailPassword"] = emailPassword;
-//  json["emailSendTo"] = emailSendTo;
-//  json["emailAfter"] = emailAfter;
-
-  //advanced properties, only show in config if set
-  // if (strlen(commandTopic))
-  //   json["commandTopic"] = commandTopic;
-  // if (strlen(statusTopic))
-  //   json["statusTopic"] = statusTopic;
-
-  File configFile = SPIFFS.open("/config.json", "w");
-  if (configFile) {
-    Serial.println("Saving config data....");
-    serializeJson(json, Serial);
-    Serial.println();
-    serializeJson(json, configFile);
-    configFile.close();
-  }
-}
-
 void cookSave() {
   DynamicJsonDocument jsonDoc(64);
   JsonObject json = jsonDoc.to<JsonObject>();
@@ -349,7 +328,7 @@ void cookSave() {
 
 //Loads the configuration data on start up
 void cookLoad() {
-  Serial.println("Loading cook data....");
+  Serial.println("Loading cook data from cookLoad");
   if (SPIFFS.begin()) {
     if (SPIFFS.exists("/cook.json")) {
       //file exists, reading and loading
@@ -377,10 +356,29 @@ void cookLoad() {
   }
 }
 
+void configSave() {
+  DynamicJsonDocument jsonDoc(128);
+  JsonObject json = jsonDoc.to<JsonObject>();
+
+  json["tempDif"] = tempDif;
+  json["fanMin"] = fanMin;
+  json["timeZoneOffset"] = timeZoneOffset;
+  json["dispC"] = dispC;
+
+  File configFile = SPIFFS.open("/config.json", "w");
+  if (configFile) {
+    Serial.println("Saving config data....");
+    serializeJson(json, Serial);
+    Serial.println();
+    serializeJson(json, configFile);
+    configFile.close();
+    Serial.println("exiting config save");
+  }
+}
 
 //Loads the configuration data on start up
 void configLoad() {
-  Serial.println("Loading config data....");
+  Serial.println("Loading config data from configLoad");
   if (SPIFFS.begin()) {
     if (SPIFFS.exists("/config.json")) {
       //file exists, reading and loading
@@ -393,7 +391,9 @@ void configLoad() {
 
         DynamicJsonDocument jsonDoc(size);
         DeserializationError error = deserializeJson(jsonDoc, buf.get());
+        Serial.println("testbeforepretty");
         serializeJsonPretty(jsonDoc, Serial);
+        Serial.println("testafterpretty");
 
         JsonObject json = jsonDoc.as<JsonObject>();
         if (json.containsKey("tempDif")) {
@@ -405,35 +405,15 @@ void configLoad() {
         }
         
          if (json.containsKey("timeZoneOffset")) {
-          Serial.print("time zone offset received ");
+          //Serial.print("time zone offset received ");
           timeZoneOffset = json["timeZoneOffset"];
-          Serial.println(timeZoneOffset);
+          //Serial.println(timeZoneOffset);
           timeClient.setTimeOffset(timeZoneOffset);
-        }       
-//
-//        if (json.containsKey("emailUsername")) {
-//          strncpy(emailUsername, json["emailUsername"], 150);
-//        }
-//
-//        if (json.containsKey("emailPassword")) {
-//          strncpy(emailPassword, json["emailPassword"], 150);
-//        }
-//
-//
-//        if (json.containsKey("emailsendTo")) {
-//          strncpy(emailSendTo, json["emailSendTo"], 150);
-//        }
-//
-//
-//        if (json.containsKey("emailAfter")) {
-//          fanMin = json["emailAfter"];
-//        }
-//
-//        if (json.containsKey("alertOn")) {
-//          alertOn = json["alertOn"];
-//        }
-
-
+        }     
+        if (json.containsKey("dispC")) {
+          Serial.println("found dispC in configLoad");
+          dispC = json["dispC"];
+        }  
       }
     }
   }

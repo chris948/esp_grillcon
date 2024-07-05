@@ -47,8 +47,8 @@ void lcdWifiBroadcast(String msg){
 
 void lcdWrite(){
 
-   Serial.print("F = ");
-   Serial.println(my_current_grill_temp);
+   //Serial.print("F = ");
+   //Serial.println(my_current_grill_temp);
    display.clearDisplay();
    display.setTextSize(2);
    display.setCursor(0, 0);

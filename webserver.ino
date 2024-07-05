@@ -143,26 +143,7 @@ void handleCookSubmit() {
 void handleConfig() {
 
   String message = "<!DOCTYPE html><html><head><title>Smoker Control Config</title></head><body><div id='main'><h1>Smoker Control Config</h1>";
-  message += "<h2> Current Temp Dif: ";
-  message += String(tempDif);
-  message += "<p> Current Fan Min: ";
-  message += String(fanMin);
-  message += "<p> Time Zone Offset: ";
-  message += String(timeZoneOffset / 3600);
-  //message += "<p> Email Username: ";
-  //message += String(emailUsername);
-  //message += "<p> Email Password: ";
-  //message += String(emailPassword);
-  //message += "<p> Email SendTo: ";
-  //message += String(emailSendTo);
-  //message += "<p> Email After Mins: ";
-  //message += String(emailAfter);
-  //message += "<p> Email Alert On: ";
-  //message += String(alertOn);
 
-
-
-  ///////////////////////////////////
   message += "<form action='configSubmit'>";
   message += "Temp Dif <input type='text' name='tempdif' ​maxlength='3' size='3' value='";
   message += String(tempDif);
@@ -173,6 +154,14 @@ void handleConfig() {
   message += "Time Zone Offset<input type='text' name='tz' ​maxlength='3' size='3' value='";
   message += String(timeZoneOffset / 3600);
   message += "'><p>";
+    if (dispC == 0) {
+    message += "Display Celsius <input type='checkbox' style='width:40px; height:40px;' name='changeDispC' value='1'>";
+    Serial.println("loaded website, dispC = 0");
+  }
+  else {
+    message += "Display Celsius <input type='checkbox' style='width:40px; height:40px;' name='changeDispC' value='1' checked='yes'>";
+    Serial.println("loaded website, dispC = 1");
+  }
 
 
   message += "<p><input type='submit' style='width:80px; height:40px;' value='Submit'></form>";
@@ -187,11 +176,17 @@ Serial.print("Received config submit tempdif is now: ");
 Serial.println(server.arg("tempdif"));
 Serial.print("Received config submit fanmin is now: ");
 Serial.println(server.arg("fanmin"));
+Serial.print("Received config submit displace celsius is now: ");
+Serial.println(server.arg("changeDispC"));
+
 tempDif = server.arg("tempdif").toInt();
 fanMin = server.arg("fanmin").toInt();
 timeZoneOffset = server.arg("tz").toInt() * 3600;
-Serial.print("saving timezone offset ");
-Serial.println(timeZoneOffset);
+//Serial.print("saving timezone offset ");
+//Serial.println(timeZoneOffset);
+Serial.println("handleConfigSubmit change to c data... ");
+dispC = server.arg("changeDispC").toInt();
+Serial.println(dispC);
 
 
   configSave();
